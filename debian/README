@@ -1,0 +1,29 @@
+
+- first run prep-pkg
+
+# debian/prep-pkg ../amdgpu-pro-....tar.xz
+
+- then build the source package
+
+# debuild -S -d
+
+- and push the source to a ppa
+
+- or build locally
+
+# fakeroot debian/rules binary
+
+
+NOTE: the EULA still prohibits distributing the result:
+
+>>>
+3. RESTRICTIONS
+
+Except for the limited license expressly granted in Section 2 herein, You have no other rights in the 
+Software, whether express, implied, arising by estoppel or otherwise. Further restrictions regarding Your 
+use of the Software are set forth below. You may not:
+
+  1. modify or create derivative works of the Software;
+  2. distribute, assign or otherwise transfer the Software;
+...
+<<<

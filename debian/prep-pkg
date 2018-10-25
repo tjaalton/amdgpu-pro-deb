@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# cleanup first
+rm -f debian/changelog debian/control debian/deblist
+rm -f *.deb
+
+if [ ! -n "$1" ]; then
+   echo "Give the amdgpu-pro tarball as an argument."
+   echo "Nothing to do now, exiting..."
+   exit 0
+fi
+
+if [ ! -e /usr/bin/dch ]; then
+   echo "'dch' is not available, please install 'devscripts'"
+fi
+
+PKG=$1
+VERSION=`echo $PKG | sed 's/.*amdgpu-pro-//;s/-ubuntu.*//;s/.tar.*//'`
+TARGET=""
+PREFIX=`echo $PKG | sed 's/.*amdgpu/amdgpu/;s/.tar.*//'`
+
+case $PKG in
+    *18.04*)
+	TARGET=bionic
+	;;
+esac
+
+if [ ! -n "$TARGET" ]; then
+   echo "I don't recognize the target release, assuming it's bionic."
+   TARGET=bionic
+fi
+
+dch --create \
+    --package amdgpu-pro \
+    --newversion $VERSION \
+    -D $TARGET \
+    "amdgpu-pro $VERSION"
+
+tar xf $1
+mv $PREFIX/*.deb .
+rm -r $PREFIX
+
+debian/rules gencontrol

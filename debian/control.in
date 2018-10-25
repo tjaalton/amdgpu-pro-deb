@@ -1,0 +1,8 @@
+Source: amdgpu-pro
+Section: x11
+Priority: optional
+Maintainer: Ubuntu X-SWAT <ubuntu-x@lists.ubuntu.com>
+Build-Depends:
+ debhelper (>= 10),
+Standards-Version: 4.2.1
+

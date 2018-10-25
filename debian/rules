@@ -1,0 +1,116 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+
+VERSION = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}')
+AMD_VERSION = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}' | sed 's/+.*//')
+REVISION = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}' | sed 's/.*-//;s/+.*//')
+# assumes vendor version is 12 chars long
+REV_EXTRA = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}' | cut -c 13-)
+
+DEBLIST = debian/deblist
+DCTRL = debian/control
+
+FIELDS = Package \
+        Architecture \
+        Depends Recommends Suggests Breaks Conflicts Replaces Provides \
+        Section \
+        Priority \
+        Multi-Arch \
+        Description
+
+# generate a helper list with the debs an arch should build
+gendeblist:
+	ls *.deb > $(DEBLIST).tmp
+	# arch:all is built on amd64
+        ifneq (,$(filter $(DEB_HOST_ARCH), amd64))
+	  grep -v '_i386' $(DEBLIST).tmp > $(DEBLIST)
+        endif
+        ifneq (,$(filter $(DEB_HOST_ARCH), i386))
+	  grep -v -e '_amd64' -e '_all' $(DEBLIST).tmp > $(DEBLIST)
+        endif
+
+	rm -f $(DEBLIST).tmp
+
+# generate debian/control
+gencontrol: gendeblist
+	cat $(DCTRL).in > $(DCTRL)
+	for DEB in `cat $(DEBLIST)`; do \
+	    dpkg-deb -f $$DEB $(FIELDS) >> $(DCTRL); \
+	    echo "" >> $(DCTRL); done
+	# add i386 to the arch list on first package
+	# without this i386 isn't built if src:amdgpu-pro is built on amd64
+	sed -i '0,/amd64/s//amd64 i386/' $(DCTRL)
+	# fix depends/recommends to include pkg rev
+	sed -i 's/$(REVISION)/$(REVISION)$(REV_EXTRA)/g' $(DCTRL)
+
+override_dh_clean: gencontrol
+	# don't clean deblist here, it's needed later
+	dh_clean
+	rm -f debian/*.lintian-overrides
+
+override_dh_installdeb:
+	# get package name and epochified version
+	# unpack the original packages
+	# run dpkg-gencontrol on them
+	# move maintainer scripts to a proper place
+	for DEB in `cat $(DEBLIST)`; do \
+	  PKG=`dpkg-deb -f $$DEB Package`; \
+	  VER=`dpkg-deb -f $$DEB Version`; \
+	  dpkg-deb -x $$DEB debian/$$PKG; \
+	  dpkg-deb -e $$DEB debian/$$PKG/DEBIAN; \
+	  dpkg-gencontrol -p$$PKG -v$$VER$(REV_EXTRA) -Pdebian/$$PKG; \
+	  cat debian/lintian-overrides.in > debian/$$PKG.lintian-overrides; \
+	  done
+
+	# munge dkms source to use the actual package version
+        ifneq (,$(filter $(DEB_HOST_ARCH), amd64))
+	if [ -n "$(REV_EXTRA)" ]; then \
+	  for FILE in debian/amdgpu-dkms/DEBIAN/prerm \
+	    debian/amdgpu-dkms/usr/src/amdgpu-$(AMD_VERSION)/dkms.conf \
+	    debian/amdgpu-dkms/usr/src/amdgpu-$(AMD_VERSION)/pre-build.sh; do \
+	  sed -i "s/$(REVISION)/$(REVISION)$(REV_EXTRA)/" $$FILE; done; \
+	  mv debian/amdgpu-dkms/usr/src/amdgpu-$(AMD_VERSION) \
+	     debian/amdgpu-dkms/usr/src/amdgpu-$(AMD_VERSION)$(REV_EXTRA); \
+	fi
+        endif
+
+override_dh_builddeb:
+	# Fix control files to include correct source pkg info
+	for CTRL in `ls debian/*/DEBIAN/control`; do \
+	  sed -i '/Source/d' $$CTRL; \
+	  echo "Source: amdgpu-pro ($(VERSION))" >> $$CTRL; \
+	  done
+
+	# fix file conflicts with old pkg
+	if [ -d debian/libdrm-amdgpu-common ]; then \
+	  echo "Replaces: ids-amdgpu" >> debian/libdrm-amdgpu-common/DEBIAN/control; \
+	fi
+
+	# repackage
+	dh_builddeb
+
+%:
+	dh $@
+
+
+override_dh_update_autotools_config:
+override_dh_installdocs:
+override_dh_installchangelogs:
+override_dh_perl:
+override_dh_link:
+override_dh_strip:
+override_dh_strip_nondeterminism:
+override_dh_compress:
+override_dh_fixperms:
+override_dh_missing:
+override_dh_makeshlibs:
+override_dh_shlibdeps:
+override_dh_gencontrol:
+
+gentarball: SOURCE=amdgpu-pro
+gentarball: UV=$(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}'|sed 's/-.*$$//')
+gentarball:
+	tar --transform 's,^,$(SOURCE)-$(UV)/,' \
+		--exclude 'debian' --exclude-vcs \
+		-czf ../$(SOURCE)_$(UV).orig.tar.gz .
