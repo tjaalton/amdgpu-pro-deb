@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/pkg-info.mk
 
 VERSION = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}')
 AMD_VERSION = $(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}' | sed 's/+.*//')
@@ -108,9 +109,9 @@ override_dh_makeshlibs:
 override_dh_shlibdeps:
 override_dh_gencontrol:
 
-gentarball: SOURCE=amdgpu-pro
-gentarball: UV=$(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}'|sed 's/-.*$$//')
+#gentarball: SOURCE=amdgpu-pro
+#gentarball: UV=$(shell dpkg-parsechangelog|awk '/^Version:/ {print $$2}'|sed 's/-.*$$//')
 gentarball:
-	tar --transform 's,^,$(SOURCE)-$(UV)/,' \
+	tar --transform 's,^,$(DEB_SOURCE)-$(DEB_VERSION_UPSTREAM)/,' \
 		--exclude 'debian' --exclude-vcs \
-		-czf ../$(SOURCE)_$(UV).orig.tar.gz .
+		-czf ../$(DEB_SOURCE)_$(DEB_VERSION_UPSTREAM).orig.tar.gz .
